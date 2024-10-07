@@ -618,9 +618,13 @@ const exfLauncher = {};
 
 		sap.ui.getCore().byId('exf-network-indicator').setIcon(isOnline ? 'sap-icon://connected' : 'sap-icon://disconnected');
 		_oShell.getModel().setProperty("/_network/online", isOnline);
-		if (exfLauncher.isOnline()) {
+		// TODO Why is exfLauncher.isOnline() true when this method is called with lowSpeed = true?
+		// Shouldn't the entire app go offline at this moment?
+		if (isOnline && exfLauncher.isOnline()) {
 			_oLauncher.contextBar.load();
 			if (exfPWA) {
+				// TODO when we switch back from forced-offline to regular, it we should probably not resync all offline
+				// data because that is likely to happen in potentially low-speed situations. How to detect this?
 				exfPWA.actionQueue.syncOffline();
 			}
 		}
