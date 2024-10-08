@@ -157,53 +157,53 @@
 // }
 
 
-export class ServiceWorkerUtils {
+// export class ServiceWorkerUtils {
 
-	/**
-	 * Sends a message as an event to the service worker
-	 * @param {Object} message A message string/object to send to the current service worker
-	 */
-	static message(message) {
-		if (navigator?.serviceWorker?.controller) {
-			navigator.serviceWorker.controller.postMessage(message);
-		} else {
-			navigator.serviceWorker.ready.then((registration) => {
-				if (registration.active) {
-					registration.active.postMessage(message);
-				}
-			});
-		}
-	}	
-}
+// 	/**
+// 	 * Sends a message as an event to the service worker
+// 	 * @param {Object} message A message string/object to send to the current service worker
+// 	 */
+// 	static message(message) {
+// 		if (navigator?.serviceWorker?.controller) {
+// 			navigator.serviceWorker.controller.postMessage(message);
+// 		} else {
+// 			navigator.serviceWorker.ready.then((registration) => {
+// 				if (registration.active) {
+// 					registration.active.postMessage(message);
+// 				}
+// 			});
+// 		}
+// 	}	
+// }
 
-export class CacheUtils {
-	static async getCachedResponse (url, body) {
-		// Check cacheStorage for GET requests
-		const cache = await caches.open('data-cache');
-		const storageCacheObject = await cache.match(url);
+// export class CacheUtils {
+// 	static async getCachedResponse (url, body) {
+// 		// Check cacheStorage for GET requests
+// 		const cache = await caches.open('data-cache');
+// 		const storageCacheObject = await cache.match(url);
 
-		// Return if the entity exists in storage cache
-		if (storageCacheObject) return storageCacheObject.json();
+// 		// Return if the entity exists in storage cache
+// 		if (storageCacheObject) return storageCacheObject.json();
 
 
-		// Check IndexDB for POST requests
-		const db = new Dexie("sw-tools");
-		db.version(1).stores({
-            cache: 'key,response,timestamp'
-        });
-		let dexieCacheObject = null;
-		try {
-			const cacheItems = await db.cache.toArray();
-			for (let item of cacheItems) {
-				const parsedKey = JSON.parse(item.key);
-				if (parsedKey.url && parsedKey.body) {
-					if ((parsedKey.url === url || parsedKey.url.includes(url)) && parsedKey.body === body) {
-						dexieCacheObject = JSON.parse(item.response.body);
-						break;
-					}
-				}
-			}
-		} catch (error) { dexieCacheObject = null; }
-		return dexieCacheObject;
-	};
-}
+// 		// Check IndexDB for POST requests
+// 		const db = new Dexie("sw-tools");
+// 		db.version(1).stores({
+//             cache: 'key,response,timestamp'
+//         });
+// 		let dexieCacheObject = null;
+// 		try {
+// 			const cacheItems = await db.cache.toArray();
+// 			for (let item of cacheItems) {
+// 				const parsedKey = JSON.parse(item.key);
+// 				if (parsedKey.url && parsedKey.body) {
+// 					if ((parsedKey.url === url || parsedKey.url.includes(url)) && parsedKey.body === body) {
+// 						dexieCacheObject = JSON.parse(item.response.body);
+// 						break;
+// 					}
+// 				}
+// 			}
+// 		} catch (error) { dexieCacheObject = null; }
+// 		return dexieCacheObject;
+// 	};
+// }

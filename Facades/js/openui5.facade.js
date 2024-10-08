@@ -1,4 +1,4 @@
-import { ServiceWorkerUtils } from './openui5.virtual.offline.js';
+// import { ServiceWorkerUtils } from './openui5.virtual.offline.js';
 
 // Toggle online/offlie icon
 window.addEventListener('online', function () {
@@ -82,11 +82,11 @@ const exfLauncher = {};
 			refreshWaitSeconds: 5
 		}
 	};
-  
+
 	// Reload context bar every 30 seconds
 	setInterval(function () {
 		exfLauncher.contextBar.load();
-	}, 30*1000);
+	}, 30 * 1000);
 
 	var _lastNetworkState = {
 		isLowSpeed: false,
@@ -94,8 +94,7 @@ const exfLauncher = {};
 		isAutoOffline: false
 	};
 
-	// Start Network State
-	initNetworkState();
+
 
 	function updateNetworkState(isLowSpeed, isAutoOffline) {
 		var isOnline = navigator.onLine;
@@ -136,13 +135,16 @@ const exfLauncher = {};
 		clearInterval(_oNetworkSpeedPoller);
 		_oNetworkSpeedPoller = setInterval(function () {
 			var isNetworkSlow = exfLauncher.isNetworkSlow();
+			if (isNetworkSlow) {
+				_bLowSpeed = true;
+			}
+
 			if (isNetworkSlow && _autoOffline) {
 				exfLauncher.updateNetworkState(isNetworkSlow, _autoOffline);
-				_bLowSpeed = true;
 				clearInterval(_oNetworkSpeedPoller);
 				exfLauncher.initFastNetworkPoller();
 			}
-		}, 5*1000);
+		}, 5 * 1000);
 	};
 
 	this.initFastNetworkPoller = function () {
@@ -151,27 +153,29 @@ const exfLauncher = {};
 			var isNetworkSlow = exfLauncher.isNetworkSlow();
 			exfLauncher.updateNetworkState(isNetworkSlow, _autoOffline);
 
-			if (!isNetworkSlow || !_autoOffline) {
+			if (!isNetworkSlow) {
 				_bLowSpeed = false;
+			}
+			if (!isNetworkSlow || !_autoOffline) {
 				clearInterval(_oNetworkSpeedPoller);
 				exfLauncher.initPoorNetworkPoller();
 			}
 		}, 5000);
 	};
 
-	// Function to initialize the network state
-	function initNetworkState() {
-		exfPWA.data.getAutoOfflineToggleStatus()
-			.then(function (autoOfflineStatus) {
-				_autoOffline = autoOfflineStatus;
-				updateNetworkState(exfLauncher.isNetworkSlow(), _autoOffline);
-				exfLauncher.initPoorNetworkPoller();
-			})
-			.catch(function (error) {
-				console.error("Error initializing network state:", error);
-				exfLauncher.initPoorNetworkPoller();
-			});
-	};
+	// // Function to initialize the network state
+	// function initNetworkState() {
+	// 	exfPWA.data.getAutoOfflineToggleStatus()
+	// 		.then(function (autoOfflineStatus) {
+	// 			_autoOffline = autoOfflineStatus;
+	// 			updateNetworkState(exfLauncher.isNetworkSlow(), _autoOffline);
+	// 			exfLauncher.initPoorNetworkPoller();
+	// 		})
+	// 		.catch(function (error) {
+	// 			console.error("Error initializing network state:", error);
+	// 			exfLauncher.initPoorNetworkPoller();
+	// 		});
+	// };
 
 	this.isNetworkSlow = function () {
 		// Check if the network speed is slow via browser API (Chrome, Opera, Edge) 
@@ -237,13 +241,13 @@ const exfLauncher = {};
 		setTimeout(() => {
 			syncOfflineItems();
 		}, 100);
-		ServiceWorkerUtils.message({ action: 'virtuallyOfflineDisabled' });
+		// ServiceWorkerUtils.message({ action: 'virtuallyOfflineDisabled' });
 		exfPWA.setVirtuallyOffline(false);
 	};
 
 	// Simulate network error in poor network speeds, except for specific URLs 
 	this.mockNetworkError = function () {
-		ServiceWorkerUtils.message({ action: 'virtuallyOfflineEnabled' });
+		// ServiceWorkerUtils.message({ action: 'virtuallyOfflineEnabled' });
 		exfPWA.setVirtuallyOffline(true);
 	};
 
@@ -619,9 +623,15 @@ const exfLauncher = {};
 		sap.ui.getCore().byId('exf-network-indicator').setIcon(isOnline ? 'sap-icon://connected' : 'sap-icon://disconnected');
 		_oShell.getModel().setProperty("/_network/online", isOnline);
 		if (exfLauncher.isOnline()) {
-			_oLauncher.contextBar.load();
-			if (exfPWA) {
-				exfPWA.actionQueue.syncOffline();
+			// TODO Why is exfLauncher.isOnline() true when this method is called with lowSpeed = true?
+			// Shouldn't the entire app go offline at this moment?
+			if (isOnline && exfLauncher.isOnline()) {
+				_oLauncher.contextBar.load();
+				if (exfPWA) {
+					// TODO when we switch back from forced-offline to regular, it we should probably not resync all offline
+					// data because that is likely to happen in potentially low-speed situations. How to detect this?
+					exfPWA.actionQueue.syncOffline();
+				}
 			}
 		}
 	};
@@ -1555,9 +1565,6 @@ const exfLauncher = {};
 			case _autoOffline && _bLowSpeed:
 				exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE_BAD_CONNECTION);
 				return "Offline, Low Speed";
-			case _autoOffline && !_bLowSpeed:
-				exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE_BAD_CONNECTION); ///
-				return "Offline, Low Speed";
 			default:
 				exfPWA.data.saveConnectionStatus(NETWORK_STATUS_ONLINE);
 				return "Online";
@@ -1774,11 +1781,11 @@ const exfLauncher = {};
 	};
 
 
-		/**
-	 * Updates the auto offline toggle status in IndexedDB
-	 * @param {boolean} status - The status to set (true for enabled, false for disabled)
-	 * @returns {Promise} A promise that resolves when the update is complete
-	 */
+	/**
+ * Updates the auto offline toggle status in IndexedDB
+ * @param {boolean} status - The status to set (true for enabled, false for disabled)
+ * @returns {Promise} A promise that resolves when the update is complete
+ */
 	function updateAutoOfflineToggleStatus(status) {
 		return new Promise((resolve, reject) => {
 			if (exfPWA && exfPWA.data && typeof exfPWA.data.saveAutoOfflineToggleStatus === 'function') {
@@ -1807,10 +1814,10 @@ const exfLauncher = {};
 			})
 			.then(function (isNetworkSlow) {
 				exfLauncher.updateNetworkState(isNetworkSlow, _autoOffline);
-	
+
 				var i18nModel = exfLauncher.contextBar.getComponent().getModel('i18n');
-				exfLauncher.showMessageToast(i18nModel.getProperty("WEBAPP.SHELL.PWA.AUTOMATIC_OFFLINE_ON")); 
-	
+				exfLauncher.showMessageToast(i18nModel.getProperty("WEBAPP.SHELL.PWA.AUTOMATIC_OFFLINE_ON"));
+
 				if (isNetworkSlow) {
 					exfLauncher.initFastNetworkPoller();
 					// Update the network menu title
@@ -1821,7 +1828,7 @@ const exfLauncher = {};
 				} else {
 					exfLauncher.initPoorNetworkPoller();
 				}
-	
+
 				// Update the network indicator icon
 				exfLauncher.toggleOnlineIndicator({ lowSpeed: isNetworkSlow });
 			})
@@ -1830,8 +1837,8 @@ const exfLauncher = {};
 				exfLauncher.showMessageToast("Error turning on auto offline mode");
 			});
 	};
-	 
-	 
+
+
 	this.toggleAutoOfflineOff = function () {
 		exfPWA.data.saveAutoOfflineToggleStatus(false)
 			.then(function () {
@@ -2051,7 +2058,7 @@ exfLauncher.updateNetworkState = function (isLowSpeed, isAutoOffline) {
 		isOnline: isOnline,
 		isAutoOffline: isAutoOffline
 	};
-	
+
 	// Check the current state and update only if there's a change
 	if (JSON.stringify(currentState) !== JSON.stringify(this._lastNetworkState)) {
 		this._lastNetworkState = currentState;
@@ -2071,14 +2078,13 @@ exfLauncher.updateNetworkState = function (isLowSpeed, isAutoOffline) {
 
 		// Save connection status
 		exfPWA.data.saveConnectionStatus(connectionStatus);
- 
+
 		if (isLowSpeed && isAutoOffline) {
 			this.mockNetworkError();
 		} else {
 			this.revertMockNetworkError();
 		}
-
-		console.log('Network state updated:', connectionStatus);
+ 
 	}
 };
 
