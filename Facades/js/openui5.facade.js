@@ -1780,32 +1780,6 @@ const exfLauncher = {};
 		exfPWA.setVirtuallyOffline(false);
 	};
 
-
-	/**
- * Updates the auto offline toggle status in IndexedDB
- * @param {boolean} status - The status to set (true for enabled, false for disabled)
- * @returns {Promise} A promise that resolves when the update is complete
- */
-	function updateAutoOfflineToggleStatus(status) {
-		return new Promise((resolve, reject) => {
-			if (exfPWA && exfPWA.data && typeof exfPWA.data.saveAutoOfflineToggleStatus === 'function') {
-				exfPWA.data.saveAutoOfflineToggleStatus(status)
-					.then(() => {
-						console.log(`Auto offline toggle status updated to ${status}`);
-						resolve();
-					})
-					.catch((error) => {
-						console.error('Error updating auto offline toggle status:', error);
-						reject(error);
-					});
-			} else {
-				const error = new Error('exfPWA.data.saveAutoOfflineToggleStatus is not available');
-				console.error(error.message);
-				reject(error);
-			}
-		});
-	}
-
 	this.toggleAutoOfflineOn = function () {
 		exfPWA.data.saveAutoOfflineToggleStatus(true)
 			.then(function () {
