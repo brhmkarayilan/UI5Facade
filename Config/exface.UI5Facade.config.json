@@ -64,10 +64,12 @@
 		"GET data": {
 			"description": "Cache data from the UI5 API (e.g. GET `/api/ui5?action=...`)",
 			"matcher": "/.*\\/api\\/ui5\\?(?!.*context).*/i",
-			"strategy": "workbox.strategies.NetworkFirst",
-			"cacheName": "data-cache",
-    		"maxEntries": 50,
-    		"maxAgeSeconds": 86400
+			"script": [
+				"swTools.strategies.semiOffline({",
+				"    onlineStrategy: new workbox.strategies.NetworkFirst(),",
+				"    offlineStrategy: new workbox.strategies.CacheFirst()",
+				"})"
+			]
 		},
     	"POST data": {
 			"description": "Cache reading POST requests from the UI5 API (e.g. POST `/api/ui5?action=...`)",
