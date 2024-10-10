@@ -1,5 +1,7 @@
 // import { ServiceWorkerUtils } from './openui5.virtual.offline.js';
 
+
+
 // Toggle online/offlie icon
 window.addEventListener('online', function () {
 	if (exfLauncher.isOnline()) {
@@ -232,10 +234,35 @@ const exfLauncher = {};
 	};
 
 
-	this.isOnline = async function () {
-		return !await this.isVirtualOffline() && navigator.onLine;
-	};
+	// this.isOnline = async function () {
+	// 	return !await this.isVirtualOffline() && navigator.onLine;
+	// };
 
+	this.isOnline = async function () {
+		// Check if we're virtually offline
+		if (this.isVirtualOffline()) {
+			return false;
+		}
+
+		// Check if we're in forced offline mode
+		if (_forceOffline) {
+			return false;
+		}
+
+		// Check if we're in low-speed offline mode (semi-offline)
+		if (_autoOffline && _bLowSpeed) {
+			return false;
+		}
+
+		// Check if we're in semi-offline mode
+		const isSemiOffline = await this.isSemiOffline();
+		if (isSemiOffline) {
+			return false;
+		}
+
+		// If none of the above conditions are true, check the browser's online status
+		return navigator.onLine;
+	};
 
 	this.revertMockNetworkError = function () {
 		setTimeout(() => {
@@ -639,7 +666,7 @@ const exfLauncher = {};
 	this.showMessageToast = function (message) {
 		sap.m.MessageToast.show(message);
 		return;
-	};
+	}; 
 
 	this.calculateSpeed = function () {
 		const avarageSpeed = navigator?.connection?.downlink ? `${navigator?.connection?.downlink} Mbps` : '-';
@@ -1598,7 +1625,7 @@ const exfLauncher = {};
 						visible: (!exfPWA.isAvailable())
 					}).addStyleClass('sapUiSmallMargin'),
 					new sap.m.List({
-						items: [
+						items: [ 
 							new sap.m.GroupHeaderListItem({
 								title: '{i18n>WEBAPP.SHELL.NETWORK.SYNC_MENU}',
 								upperCase: false
@@ -1746,7 +1773,7 @@ const exfLauncher = {};
 			oPopover.openBy(oButton);
 		});
 	};
-
+  
 	this.toggleForceOfflineOn = function () {
 		_forceOffline = true;
 		exfLauncher.updateNetworkState(true, true);
@@ -2058,11 +2085,11 @@ exfLauncher.updateNetworkState = function (isLowSpeed, isAutoOffline) {
 		} else {
 			this.revertMockNetworkError();
 		}
- 
+
 	}
 };
 
 // Define initial state
 exfLauncher._lastNetworkState = null;
-
+ 
 window['exfLauncher'] = exfLauncher;
