@@ -1,6 +1,15 @@
-// import { ServiceWorkerUtils } from './openui5.virtual.offline.js';
+// Store the original console.error function
+const originalConsoleError = console.error;
 
+// Array to store captured errors
+let capturedErrors = [];
 
+// Regex patterns for errors to ignore
+const ignoredErrorPatterns = [
+	/Assertion failed: could not find any translatable text for key/i,
+	/The target you tried to get .* does not exist!/i,
+	/EventProvider sap\.m\.routing\.Targets/i
+];
 
 // Toggle online/offlie icon
 window.addEventListener('online', function () {
@@ -663,11 +672,21 @@ const exfLauncher = {};
 		}
 	};
 
-	this.showMessageToast = function (message) {
-		sap.m.MessageToast.show(message);
-		return;
-	}; 
+	this.showMessageToast = function (message, duration) {
+		// Set default duration to 3000 milliseconds (3 seconds)
 
+		var defaultDuration = 3000;
+
+		// If a duration is provided, use it; otherwise, use the default duration
+		var toastDuration = duration || defaultDuration;
+
+		// Show the MessageToast with the customized duration
+		sap.m.MessageToast.show(message, {
+			duration: toastDuration,
+			width: "20em"  // Increase the width of the message (optional)
+		});
+	};
+  
 	this.calculateSpeed = function () {
 		const avarageSpeed = navigator?.connection?.downlink ? `${navigator?.connection?.downlink} Mbps` : '-';
 		const speedTier = navigator?.connection?.effectiveType ? navigator?.connection?.effectiveType.toUpperCase() : '-';
@@ -1625,7 +1644,7 @@ const exfLauncher = {};
 						visible: (!exfPWA.isAvailable())
 					}).addStyleClass('sapUiSmallMargin'),
 					new sap.m.List({
-						items: [ 
+						items: [
 							new sap.m.GroupHeaderListItem({
 								title: '{i18n>WEBAPP.SHELL.NETWORK.SYNC_MENU}',
 								upperCase: false
@@ -1673,6 +1692,12 @@ const exfLauncher = {};
 								icon: "sap-icon://sys-cancel",
 								type: "Active",
 								press: _oLauncher.clearPreload,
+							}),
+							new sap.m.StandardListItem({
+								title: "{i18n>WEBAPP.SHELL.NETWORK.ERROR_LOG}",
+								type: "Active",
+								icon: "sap-icon://message-warning",
+								press: _oLauncher.showErrorLog
 							}),
 							new sap.m.GroupHeaderListItem({
 								title: "{i18n>WEBAPP.SHELL.NETWORK.OFFLINE_HEADER}",
@@ -1773,7 +1798,57 @@ const exfLauncher = {};
 			oPopover.openBy(oButton);
 		});
 	};
-  
+
+	this.showErrorLog = function (oEvent) {
+		var oButton = oEvent.getSource();
+		var oTable = new sap.m.Table({
+			autoPopinMode: true,
+			fixedLayout: false,
+			columns: [
+				new sap.m.Column({
+					header: new sap.m.Label({ text: "Timestamp" }),
+					width: "200px"
+				}),
+				new sap.m.Column({
+					header: new sap.m.Label({ text: "Message" })
+				}),
+				new sap.m.Column({
+					header: new sap.m.Label({ text: "URL" }),
+					width: "200px"
+				}),
+				new sap.m.Column({
+					header: new sap.m.Label({ text: "Stack" }),
+					width: "200px"
+				})
+			],
+			items: {
+				path: "/errors",
+				template: new sap.m.ColumnListItem({
+					cells: [
+						new sap.m.Text({ text: "{timestamp}" }),
+						new sap.m.Text({ text: "{message}" }),
+						new sap.m.Text({ text: "{url}" }),
+						new sap.m.Text({ text: "{stack}" })
+					]
+				})
+			}
+		});
+
+		var oModel = new sap.ui.model.json.JSONModel({
+			errors: capturedErrors
+		});
+		oTable.setModel(oModel);
+
+		_oLauncher.contextBar.getComponent().showDialog(
+			// '{i18n>WEBAPP.SHELL.NETWORK.ERROR_LOG}',
+			'Error Log',
+			oTable,
+			undefined,
+			undefined,
+			true
+		);
+	};
+
 	this.toggleForceOfflineOn = function () {
 		_forceOffline = true;
 		exfLauncher.updateNetworkState(true, true);
@@ -2091,5 +2166,63 @@ exfLauncher.updateNetworkState = function (isLowSpeed, isAutoOffline) {
 
 // Define initial state
 exfLauncher._lastNetworkState = null;
- 
+
+// Override the default console.error function to capture and log errors
+console.error = function (...args) {
+	// Call the original console.error function
+	originalConsoleError.apply(console, args);
+
+	// Create the error message
+	let errorMessage = args.map(arg => {
+		if (arg instanceof Error) {
+			return arg.stack || arg.message; // Return stack trace or message if it's an Error object
+		} else if (typeof arg === 'object') {
+			return JSON.stringify(arg); // Convert objects to JSON string
+		} else {
+			return String(arg); // Convert other types to string
+		}
+	}).join(' ');
+
+	// Check if the error message matches a pattern that should be ignored
+	const shouldIgnore = ignoredErrorPatterns.some(pattern => pattern.test(errorMessage));
+
+	if (!shouldIgnore) {
+		//get error details
+		const errorDetails = {
+			message: errorMessage,
+			timestamp: new Date().toISOString(),
+			url: window.location.href,
+			stack: new Error().stack // Capture stack trace
+		};
+
+		// Add to captured errors
+		capturedErrors.push(errorDetails);
+
+		// Show toast message if exfLauncher is defined and has the showMessageToast function
+		if (typeof exfLauncher !== 'undefined' && typeof exfLauncher.showMessageToast === 'function') {
+			exfLauncher.showMessageToast('An error occurred. Check the error log for details.', 5000);
+		}
+	}
+};
+
+// Store the existing window.onload function (if it exists)
+var existingOnload = window.onload;
+
+// Define the new window.onload function
+window.onload = function () {
+	// If there is an existing onload function, call it
+	if (typeof existingOnload === 'function') {
+		existingOnload();
+	}
+
+	// Clear the error list (Step 5)
+	capturedErrors = [];
+
+	// After the page has finished loading, check the error count and show toast message (Step 6)
+	setTimeout(function () {
+		if (capturedErrors.length > 0) {
+			exfLauncher.showMessageToast(capturedErrors.length + ' errors occurred. Check the error log for details.', 3000);
+		}
+	}, 1000); // 1 second delay to ensure the page has fully loaded
+};
 window['exfLauncher'] = exfLauncher;
