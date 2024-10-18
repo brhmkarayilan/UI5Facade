@@ -27,6 +27,16 @@ window.addEventListener('offline', function () {
 
 window.addEventListener('load', function () {
 	exfLauncher.initPoorNetworkPoller();
+	
+	//ServiceWorker automatic update
+	checkForServiceWorkerUpdate();
+	if ('serviceWorker' in navigator) {
+		navigator.serviceWorker.getRegistration().then(reg => {
+			if (reg && reg.waiting) {
+				reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+			}
+		});
+	}
 });
 
 if (navigator.serviceWorker) {
@@ -1820,6 +1830,14 @@ const exfLauncher = {};
 				new sap.m.Column({
 					header: new sap.m.Label({ text: "Stack" }),
 					width: "200px"
+				}),
+				new sap.m.Column({
+					header: new sap.m.Label({ text: "Network Status" }),
+					width: "150px"
+				}),
+				new sap.m.Column({
+					header: new sap.m.Label({ text: "Connection Status" }),
+					width: "150px"
 				})
 			],
 			items: {
@@ -1829,25 +1847,43 @@ const exfLauncher = {};
 						new sap.m.Text({ text: "{timestamp}" }),
 						new sap.m.Text({ text: "{message}" }),
 						new sap.m.Text({ text: "{url}" }),
-						new sap.m.Text({ text: "{stack}" })
+						new sap.m.Text({ text: "{stack}" }),
+						new sap.m.Text({ text: "{networkStatus}" }),
+						new sap.m.Text({ text: "{connectionStatus}" })
 					]
 				})
 			}
 		});
 
-		var oModel = new sap.ui.model.json.JSONModel({
-			errors: capturedErrors
+		// Update error logs and add network status information
+		var updatedErrors = capturedErrors.map(function (error) {
+			return exfPWA.getLatestConnectionStatus()
+				.then(function (connectionStatus) {
+					return {
+						timestamp: error.timestamp,
+						message: error.message,
+						url: error.url,
+						stack: error.stack,
+						networkStatus: navigator.connection ? navigator.connection.effectiveType : 'Unknown',
+						connectionStatus: connectionStatus
+					};
+				});
 		});
-		oTable.setModel(oModel);
 
-		_oLauncher.contextBar.getComponent().showDialog(
-			// '{i18n>WEBAPP.SHELL.NETWORK.ERROR_LOG}',
-			'Error Log',
-			oTable,
-			undefined,
-			undefined,
-			true
-		);
+		Promise.all(updatedErrors).then(function (resolvedErrors) {
+			var oModel = new sap.ui.model.json.JSONModel({
+				errors: resolvedErrors
+			});
+			oTable.setModel(oModel);
+
+			_oLauncher.contextBar.getComponent().showDialog(
+				'Error Log',
+				oTable,
+				undefined,
+				undefined,
+				true
+			);
+		});
 	};
 
 	this.toggleForceOfflineOn = function () {
@@ -2253,4 +2289,21 @@ window.onload = function () {
 		}
 	}, 1000); // 1 second delay to ensure the page has fully loaded
 };
-window['exfLauncher'] = exfLauncher; 
+window['exfLauncher'] = exfLauncher;
+
+
+//ServiceWorker automatic update
+function checkForServiceWorkerUpdate() {
+	if ('serviceWorker' in navigator) {
+		navigator.serviceWorker.getRegistration().then(reg => {
+			if (reg) {
+				reg.update();
+			}
+		});
+	}
+}
+
+// // After page load, check service 
+// window.addEventListener('load', () => {
+	
+// });
