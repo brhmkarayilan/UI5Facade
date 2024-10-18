@@ -686,7 +686,7 @@ const exfLauncher = {};
 			width: "20em"  // Increase the width of the message (optional)
 		});
 	};
-  
+
 	this.calculateSpeed = function () {
 		const avarageSpeed = navigator?.connection?.downlink ? `${navigator?.connection?.downlink} Mbps` : '-';
 		const speedTier = navigator?.connection?.effectiveType ? navigator?.connection?.effectiveType.toUpperCase() : '-';
@@ -1600,22 +1600,23 @@ const exfLauncher = {};
 			})
 	};
 
+
+
 	this.getTitle = function () {
-		switch (true) {
-			case !navigator.onLine:
-				exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE);
-				return "Offline, No Internet";
-			case _forceOffline:
-				exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE_FORCED);
-				return "Offline, Forced";
-			case _autoOffline && _bLowSpeed:
-				exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE_BAD_CONNECTION);
-				return "Offline, Low Speed";
-			default:
-				exfPWA.data.saveConnectionStatus(NETWORK_STATUS_ONLINE);
-				return "Online";
+		if (_forceOffline) {
+			exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE_FORCED);
+			return "Offline, Forced";
+		} else if (!navigator.onLine) {
+			exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE);
+			return "Offline, No Internet";
+		} else if (_autoOffline && _bLowSpeed) {
+			exfPWA.data.saveConnectionStatus(NETWORK_STATUS_OFFLINE_BAD_CONNECTION);
+			return "Offline, Low Speed";
+		} else {
+			exfPWA.data.saveConnectionStatus(NETWORK_STATUS_ONLINE);
+			return "Online";
 		}
-	}
+	};
 
 	/**
 	 * Shows the offline menu
@@ -1851,19 +1852,29 @@ const exfLauncher = {};
 
 	this.toggleForceOfflineOn = function () {
 		_forceOffline = true;
-		exfLauncher.updateNetworkState(true, true);
+		_autoOffline = false; // Disable auto offline when force offline is enabled
+		exfLauncher.updateNetworkState(true, false);
 
 		exfLauncher.showMessageToast(exfLauncher.contextBar.getComponent().getModel('i18n').getProperty("WEBAPP.SHELL.PWA.FORCE_OFFLINE_ON"));
-		if (!_bLowSpeed) {
-			exfLauncher.mockNetworkError();
-		} else {
-			_bLowSpeed = false;
-		}
+		exfLauncher.mockNetworkError();
 		clearInterval(_oNetworkSpeedPoller);
-		_forceOffline = true;
 		exfLauncher.toggleOnlineIndicator({ lowSpeed: true });
-		sap.ui.getCore().byId('auto_offline_toggle').setEnabled(false);
+
+		// Update UI elements
+		var autoOfflineSwitch = sap.ui.getCore().byId('auto_offline_toggle');
+		if (autoOfflineSwitch) {
+			autoOfflineSwitch.setState(false);
+			autoOfflineSwitch.setEnabled(false);
+		}
+
+		// Update force offline switch state
+		var forceOfflineSwitch = sap.ui.getCore().byId('force_offline_toggle');
+		if (forceOfflineSwitch) {
+			forceOfflineSwitch.setState(true);
+		}
+
 		exfPWA.setVirtuallyOffline(true);
+		exfPWA.data.saveAutoOfflineToggleStatus(false); // Save auto offline status
 	};
 
 	this.toggleForceOfflineOff = function () {
@@ -1871,18 +1882,36 @@ const exfLauncher = {};
 		exfLauncher.updateNetworkState(false, _autoOffline);
 
 		exfLauncher.showMessageToast(exfLauncher.contextBar.getComponent().getModel('i18n').getProperty("WEBAPP.SHELL.PWA.FORCE_OFFLINE_OFF"));
-		exfLauncher.revertMockNetworkError()
+		exfLauncher.revertMockNetworkError();
 		_bLowSpeed = false;
-		_forceOffline = false;
+
 		if (_autoOffline) {
-			exfLauncher.initPoorNetworkPoller()
+			exfLauncher.initPoorNetworkPoller();
+		} else {
+			exfLauncher.toggleOnlineIndicator({ lowSpeed: false });
 		}
-		exfLauncher.toggleOnlineIndicator();
-		sap.ui.getCore().byId('auto_offline_toggle').setEnabled(true);
+
+		// Update UI elements
+		var autoOfflineSwitch = sap.ui.getCore().byId('auto_offline_toggle');
+		if (autoOfflineSwitch) {
+			autoOfflineSwitch.setEnabled(true);
+		}
+
+		// Update force offline switch state
+		var forceOfflineSwitch = sap.ui.getCore().byId('force_offline_toggle');
+		if (forceOfflineSwitch) {
+			forceOfflineSwitch.setState(false);
+		}
+
 		exfPWA.setVirtuallyOffline(false);
 	};
 
 	this.toggleAutoOfflineOn = function () {
+		if (_forceOffline) {
+			exfLauncher.showMessageToast(exfLauncher.contextBar.getComponent().getModel('i18n').getProperty("WEBAPP.SHELL.PWA.AUTO_OFFLINE_DISABLED_FORCE_OFFLINE"));
+			return;
+		}
+
 		exfPWA.data.saveAutoOfflineToggleStatus(true)
 			.then(function () {
 				_autoOffline = true;
@@ -1896,16 +1925,11 @@ const exfLauncher = {};
 
 				if (isNetworkSlow) {
 					exfLauncher.initFastNetworkPoller();
-					// Update the network menu title
-					var oPopover = sap.ui.getCore().byId('exf-network-menu');
-					if (oPopover) {
-						oPopover.setTitle(i18nModel.getProperty("WEBAPP.SHELL.NETWORK.AUTOMATIC_OFFLINE_OFF"));
-					}
+					exfLauncher.mockNetworkError();
 				} else {
 					exfLauncher.initPoorNetworkPoller();
 				}
 
-				// Update the network indicator icon
 				exfLauncher.toggleOnlineIndicator({ lowSpeed: isNetworkSlow });
 			})
 			.catch(function (error) {
@@ -1913,7 +1937,46 @@ const exfLauncher = {};
 				exfLauncher.showMessageToast("Error turning on auto offline mode");
 			});
 	};
+	// Update the updateNetworkState function to handle both auto offline and force offline
+	this.updateNetworkState = function (isLowSpeed, isAutoOffline) {
+		var isOnline = navigator.onLine && !_forceOffline;
+		var currentState = {
+			isLowSpeed: isLowSpeed,
+			isOnline: isOnline,
+			isAutoOffline: isAutoOffline,
+			isForceOffline: _forceOffline
+		};
 
+		if (JSON.stringify(currentState) !== JSON.stringify(this._lastNetworkState)) {
+			this._lastNetworkState = currentState;
+
+			var connectionStatus;
+			if (_forceOffline) {
+				connectionStatus = 'offline_forced';
+			} else if (!isOnline) {
+				connectionStatus = 'offline';
+			} else if (isLowSpeed && isAutoOffline) {
+				connectionStatus = 'offline_bad_connection';
+			} else {
+				connectionStatus = 'online';
+			}
+
+			this.toggleOnlineIndicator({ lowSpeed: _forceOffline || (isLowSpeed && isAutoOffline) });
+			exfPWA.data.saveConnectionStatus(connectionStatus);
+
+			if (_forceOffline || (isLowSpeed && isAutoOffline)) {
+				this.mockNetworkError();
+			} else {
+				this.revertMockNetworkError();
+			}
+
+			// Update network menu title
+			var oPopover = sap.ui.getCore().byId('exf-network-menu');
+			if (oPopover) {
+				oPopover.setTitle(this.getTitle());
+			}
+		}
+	};
 
 	this.toggleAutoOfflineOff = function () {
 		exfPWA.data.saveAutoOfflineToggleStatus(false)
@@ -1928,11 +1991,11 @@ const exfLauncher = {};
 
 				if (_bLowSpeed) {
 					exfLauncher.revertMockNetworkError();
-					exfLauncher.toggleOnlineIndicator({ lowSpeed: false });
 					_bLowSpeed = false;
 				}
 
 				exfLauncher.initPoorNetworkPoller();
+				exfLauncher.toggleOnlineIndicator({ lowSpeed: false });
 
 				var i18nModel = exfLauncher.contextBar.getComponent().getModel('i18n');
 				exfLauncher.showMessageToast(i18nModel.getProperty("WEBAPP.SHELL.PWA.AUTOMATIC_OFFLINE_OFF"));
@@ -2127,42 +2190,7 @@ function listNetworkStats() {
 		});
 }
 
-exfLauncher.updateNetworkState = function (isLowSpeed, isAutoOffline) {
-	var isOnline = navigator.onLine;
-	var currentState = {
-		isLowSpeed: isLowSpeed,
-		isOnline: isOnline,
-		isAutoOffline: isAutoOffline
-	};
 
-	// Check the current state and update only if there's a change
-	if (JSON.stringify(currentState) !== JSON.stringify(this._lastNetworkState)) {
-		this._lastNetworkState = currentState;
-
-		// Determine connection status
-		var connectionStatus;
-		if (!isOnline) {
-			connectionStatus = 'offline';
-		} else if (isLowSpeed && isAutoOffline) {
-			connectionStatus = 'offline_bad_connection';
-		} else {
-			connectionStatus = 'online';
-		}
-
-		// UI updates
-		this.toggleOnlineIndicator({ lowSpeed: isLowSpeed && isAutoOffline });
-
-		// Save connection status
-		exfPWA.data.saveConnectionStatus(connectionStatus);
-
-		if (isLowSpeed && isAutoOffline) {
-			this.mockNetworkError();
-		} else {
-			this.revertMockNetworkError();
-		}
-
-	}
-};
 
 // Define initial state
 exfLauncher._lastNetworkState = null;
@@ -2225,4 +2253,4 @@ window.onload = function () {
 		}
 	}, 1000); // 1 second delay to ensure the page has fully loaded
 };
-window['exfLauncher'] = exfLauncher;
+window['exfLauncher'] = exfLauncher; 
