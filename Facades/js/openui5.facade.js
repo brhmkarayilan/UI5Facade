@@ -1823,12 +1823,10 @@ const exfLauncher = {};
 					header: new sap.m.Label({ text: "Message" })
 				}),
 				new sap.m.Column({
-					header: new sap.m.Label({ text: "URL" }),
-					width: "200px"
+					header: new sap.m.Label({ text: "URL" })
 				}),
 				new sap.m.Column({
-					header: new sap.m.Label({ text: "Stack" }),
-					width: "200px"
+					header: new sap.m.Label({ text: "Stack" })
 				}),
 				new sap.m.Column({
 					header: new sap.m.Label({ text: "Network Status" }),
@@ -1844,16 +1842,115 @@ const exfLauncher = {};
 				template: new sap.m.ColumnListItem({
 					cells: [
 						new sap.m.Text({ text: "{timestamp}" }),
-						new sap.m.Text({ text: "{message}" }),
-						new sap.m.Text({ text: "{url}" }),
-						new sap.m.Text({ text: "{stack}" }),
+						new sap.m.VBox({
+							items: [
+								new sap.m.Text({
+									text: {
+										path: "message",
+										formatter: function(text) {
+											return text && text.length > 100 ? text.substring(0, 100) + "..." : text;
+										}
+									}
+								}).addStyleClass("sapUiTinyMarginBottom"),
+								new sap.m.Link({
+									text: {
+										path: "message",
+										formatter: function(text) {
+											return text && text.length > 100 ? "More" : "";
+										}
+									},
+									press: function(oEvent) {
+										var oLink = oEvent.getSource();
+										var oVBox = oLink.getParent();
+										var oText = oVBox.getItems()[0];
+										var sFullText = oEvent.getSource().getBindingContext().getObject().message;
+										
+										if (oLink.getText() === "More") {
+											oText.setText(sFullText);
+											oLink.setText("Less");
+										} else {
+											oText.setText(sFullText.substring(0, 100) + "...");
+											oLink.setText("More");
+										}
+									}
+								})
+							]
+						}),
+						new sap.m.VBox({
+							items: [
+								new sap.m.Text({
+									text: {
+										path: "url",
+										formatter: function(text) {
+											return text && text.length > 100 ? text.substring(0, 100) + "..." : text;
+										}
+									}
+								}).addStyleClass("sapUiTinyMarginBottom"),
+								new sap.m.Link({
+									text: {
+										path: "url",
+										formatter: function(text) {
+											return text && text.length > 100 ? "More" : "";
+										}
+									},
+									press: function(oEvent) {
+										var oLink = oEvent.getSource();
+										var oVBox = oLink.getParent();
+										var oText = oVBox.getItems()[0];
+										var sFullText = oEvent.getSource().getBindingContext().getObject().url;
+										
+										if (oLink.getText() === "More") {
+											oText.setText(sFullText);
+											oLink.setText("Less");
+										} else {
+											oText.setText(sFullText.substring(0, 100) + "...");
+											oLink.setText("More");
+										}
+									}
+								})
+							]
+						}),
+						new sap.m.VBox({
+							items: [
+								new sap.m.Text({
+									text: {
+										path: "stack",
+										formatter: function(text) {
+											return text && text.length > 100 ? text.substring(0, 100) + "..." : text;
+										}
+									}
+								}).addStyleClass("sapUiTinyMarginBottom"),
+								new sap.m.Link({
+									text: {
+										path: "stack",
+										formatter: function(text) {
+											return text && text.length > 100 ? "More" : "";
+										}
+									},
+									press: function(oEvent) {
+										var oLink = oEvent.getSource();
+										var oVBox = oLink.getParent();
+										var oText = oVBox.getItems()[0];
+										var sFullText = oEvent.getSource().getBindingContext().getObject().stack;
+										
+										if (oLink.getText() === "More") {
+											oText.setText(sFullText);
+											oLink.setText("Less");
+										} else {
+											oText.setText(sFullText.substring(0, 100) + "...");
+											oLink.setText("More");
+										}
+									}
+								})
+							]
+						}),
 						new sap.m.Text({ text: "{networkStatus}" }),
 						new sap.m.Text({ text: "{connectionStatus}" })
 					]
 				})
 			}
 		});
-
+	
 		// Update error logs and add network status information 
 		var updatedErrors = capturedErrors.map(function (error) {
 			return exfPWA.getLatestConnectionStatus()
@@ -1868,7 +1965,7 @@ const exfLauncher = {};
 					};
 				});
 		});
-
+	
 		Promise.all(updatedErrors).then(function (resolvedErrors) {
 			var oModel = new sap.ui.model.json.JSONModel({
 				errors: resolvedErrors
@@ -1876,7 +1973,9 @@ const exfLauncher = {};
 			oTable.setModel(oModel);
 	
 			var dialog = new sap.m.Dialog({
-				title: 'Error Log', 
+				title: 'Error Log',
+				contentWidth: "90%",
+				contentHeight: "80%",
 				content: [oTable],
 				endButton: new sap.m.Button({
 					text: "Close",
@@ -1891,7 +1990,7 @@ const exfLauncher = {};
 					press: function() {
 						// Clear Error List
 						capturedErrors = [];
-
+	
 						// Update Model 
 						oTable.getModel().setProperty("/errors", []); 
 						exfLauncher.showMessageToast("Error log cleared");
