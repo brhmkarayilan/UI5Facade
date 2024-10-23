@@ -1725,7 +1725,7 @@ const exfLauncher = {};
 									items: [
 										new sap.m.Switch('auto_offline_toggle', {
 											state: true,
-											disabled: !navigator.onLine,
+											enabled: navigator.onLine, // Changed from disabled to enabled
 											change: function (oEvent) {
 												var oSwitch = oEvent.getSource();
 												if (oSwitch.getState()) {
@@ -1740,7 +1740,7 @@ const exfLauncher = {};
 										}),
 									],
 								}),
-							}),
+							}).addStyleClass("sapUiResponsivePadding"),
 							new sap.m.CustomListItem({
 								content: new sap.m.FlexBox({
 									direction: "Row",
@@ -1752,7 +1752,7 @@ const exfLauncher = {};
 									items: [
 										new sap.m.Switch('force_offline_toggle', {
 											state: _forceOffline,
-											disabled: !navigator.onLine,
+											 enabled: navigator.onLine, // Changed from disabled to enabled
 											change: function (oEvent) {
 												var oSwitch = oEvent.getSource();
 												if (oSwitch.getState()) {
@@ -1765,9 +1765,8 @@ const exfLauncher = {};
 										new sap.m.Text({
 											text: "{i18n>WEBAPP.SHELL.NETWORK_FORCE_OFFLINE}"
 										}),
-									],
-									style: "padding-left: 1rem; padding-right: 1rem;",
-								}),
+									], 
+								}).addStyleClass("sapUiResponsivePadding"),
 							}),
 						]
 					})
@@ -1787,7 +1786,7 @@ const exfLauncher = {};
 				.setModel(oButton.getModel())
 				.setModel(oButton.getModel('i18n'), 'i18n');
 
-			// Fetch and set the auto offline toggle status
+			// Fetch and set the auto offline toggle status 
 			if (exfPWA && exfPWA.data && typeof exfPWA.data.getAutoOfflineToggleStatus === 'function') {
 				exfPWA.data.getAutoOfflineToggleStatus()
 					.then(function (status) {
@@ -1855,7 +1854,7 @@ const exfLauncher = {};
 			}
 		});
 
-		// Update error logs and add network status information
+		// Update error logs and add network status information 
 		var updatedErrors = capturedErrors.map(function (error) {
 			return exfPWA.getLatestConnectionStatus()
 				.then(function (connectionStatus) {
@@ -1875,14 +1874,32 @@ const exfLauncher = {};
 				errors: resolvedErrors
 			});
 			oTable.setModel(oModel);
+	
+			var dialog = new sap.m.Dialog({
+				title: 'Error Log', 
+				content: [oTable],
+				endButton: new sap.m.Button({
+					text: "Close",
+					type: "Emphasized",
+					press: function() {
+						dialog.close();
+					}
+				}),
+				beginButton: new sap.m.Button({
+					text: "Dismiss All",
+					type: "Emphasized",
+					press: function() {
+						// Clear Error List
+						capturedErrors = [];
 
-			_oLauncher.contextBar.getComponent().showDialog(
-				'Error Log',
-				oTable,
-				undefined,
-				undefined,
-				true
-			);
+						// Update Model 
+						oTable.getModel().setProperty("/errors", []); 
+						exfLauncher.showMessageToast("Error log cleared");
+					}
+				})
+			});
+	
+			dialog.open();
 		});
 	};
 
@@ -2226,48 +2243,152 @@ function listNetworkStats() {
 		});
 }
 
+// Set to keep track of dismissed errors
+exfLauncher.dismissedErrors = new Set();
 
+/**
+ * Displays an error popover with a list of captured errors, excluding dismissed ones.
+ * This function creates or updates a popover to show error details.
+ * @param {string} errorMessage - The most recent error message to display.
+ */
+exfLauncher.showErrorPopover = function(errorMessage) {
+    // Close and destroy the existing popover if it's open 
+    if (this.errorPopover) {
+        this.errorPopover.close();
+        this.errorPopover.destroy();
+    }
+
+    // Filter out dismissed errors 
+    var activeErrors = capturedErrors.filter(error => !this.dismissedErrors.has(error.message));
+
+    // Prepare error messages as a list  
+    var errorList = new sap.m.List({
+        items: activeErrors.map(function(error) {
+            return new sap.m.StandardListItem({
+                title: error.message,
+                description: new Date(error.timestamp).toLocaleString(),
+                type: "Active",
+                wrapping: true,
+                press: function() {
+                    // Show error details 
+                    sap.m.MessageBox.error(error.stack || error.message, {
+                        title: "Error Details"
+                    });
+                }
+            });
+        })
+    });
+
+    this.errorPopover = new sap.m.Popover({
+        placement: sap.m.PlacementType.Bottom,
+        showHeader: true,
+        title: "Errors Occurred", 
+        content: [
+            new sap.m.VBox({
+                items: [
+                    new sap.m.Text({
+                        text: activeErrors.length + " error(s) occurred. Tap for details.",
+                        wrapping: true // Wrapping the message
+                    }).addStyleClass("sapUiSmallMargin"),
+                    errorList
+                ],
+                justifyContent: sap.m.FlexJustifyContent.SpaceBetween,
+                alignItems: sap.m.FlexAlignItems.Stretch,
+                height: "100%"
+            })
+        ],
+        footer: new sap.m.Toolbar({
+            content: [
+                new sap.m.ToolbarSpacer(),
+                new sap.m.Button({
+                    text: "Details",
+                    icon: "sap-icon://detail-view",
+                    press: function() {
+                        // Close the popover before showing the  log
+                        exfLauncher.errorPopover.close();
+                        // Create a dummy event object since showErrorLog  expects one
+                        var dummyEvent = {
+                            getSource: function() {
+                                return sap.ui.getCore().byId("exf-network-indicator");
+                            }
+                        };
+                        // Show the detailed error log
+                        exfLauncher.showErrorLog(dummyEvent);
+                    }
+                }),
+                new sap.m.Button({
+                    text: "Dismiss All",
+                    press: function() {
+                        activeErrors.forEach(error => exfLauncher.dismissedErrors.add(error.message));
+                        exfLauncher.errorPopover.close();
+                    }
+                }),
+                new sap.m.Button({
+                    text: "Close",
+                    press: function() {
+                        exfLauncher.errorPopover.close();
+                    }
+                })
+            ]
+        }),
+        afterClose: function() {
+            // Don't destroy the popover after closing, keep it for reuse
+            exfLauncher.errorPopover.close();
+        }
+    });
+
+    // Make the popover more visible
+    this.errorPopover.addStyleClass("sapUiContentPadding");
+    this.errorPopover.addStyleClass("sapUiResponsivePadding");
+
+    // Keep the popover above other page elements
+    this.errorPopover.setInitialFocus(this.errorPopover.getContent()[0]);
+
+    // Show Popover only if there are active errors
+    if (activeErrors.length > 0) {
+        var oNetworkIndicator = sap.ui.getCore().byId("exf-network-indicator");
+        this.errorPopover.openBy(oNetworkIndicator);
+    }
+};
+
+/**
+ * Overrides the default console.error function to capture and log errors.
+ * This function logs the original error, captures error details, and displays them in a popover.
+ */
+console.error = function (...args) {
+    originalConsoleError.apply(console, args);
+
+    let errorMessage = args.map(arg => {
+        if (arg instanceof Error) {
+            return arg.stack || arg.message;
+        } else if (typeof arg === 'object') {
+            return JSON.stringify(arg);
+        } else {
+            return String(arg);
+        }
+    }).join(' ');
+
+    const shouldIgnore = ignoredErrorPatterns.some(pattern => pattern.test(errorMessage));
+
+    if (!shouldIgnore && !exfLauncher.dismissedErrors.has(errorMessage)) {
+        const errorDetails = {
+            message: errorMessage,
+            timestamp: new Date().toISOString(),
+            url: window.location.href,
+            stack: new Error().stack
+        };
+
+        capturedErrors.push(errorDetails);
+
+        // Show or update the popover
+        if (typeof exfLauncher !== 'undefined' && typeof exfLauncher.showErrorPopover === 'function') {
+            exfLauncher.showErrorPopover(errorMessage);
+        }
+    }
+}; 
 
 // Define initial state
 exfLauncher._lastNetworkState = null;
-
-// Override the default console.error function to capture and log errors
-console.error = function (...args) {
-	// Call the original console.error function
-	originalConsoleError.apply(console, args);
-
-	// Create the error message
-	let errorMessage = args.map(arg => {
-		if (arg instanceof Error) {
-			return arg.stack || arg.message; // Return stack trace or message if it's an Error object
-		} else if (typeof arg === 'object') {
-			return JSON.stringify(arg); // Convert objects to JSON string
-		} else {
-			return String(arg); // Convert other types to string
-		}
-	}).join(' ');
-
-	// Check if the error message matches a pattern that should be ignored
-	const shouldIgnore = ignoredErrorPatterns.some(pattern => pattern.test(errorMessage));
-
-	if (!shouldIgnore) {
-		//get error details
-		const errorDetails = {
-			message: errorMessage,
-			timestamp: new Date().toISOString(),
-			url: window.location.href,
-			stack: new Error().stack // Capture stack trace
-		};
-
-		// Add to captured errors
-		capturedErrors.push(errorDetails);
-
-		// Show toast message if exfLauncher is defined and has the showMessageToast function
-		if (typeof exfLauncher !== 'undefined' && typeof exfLauncher.showMessageToast === 'function') {
-			exfLauncher.showMessageToast('An error occurred. Check the error log for details.', 5000);
-		}
-	}
-};
 
 // Store the existing window.onload function (if it exists)
 var existingOnload = window.onload;

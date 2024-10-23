@@ -34,6 +34,7 @@
 	"WEBAPP.SHELL.PWA.MENU": "Оффлайн-данные",
 	"WEBAPP.SHELL.PWA.MENU_SYNC": "Синхронизировать",
 	"WEBAPP.SHELL.PWA.MENU_SYNC_TOOLTIP": "Synchronize all offline data for this client",
+	"WEBAPP.SHELL.PWA.MENU_SYNC_RE_TOOLTIP": "Resynchronize all offline data",
 	"WEBAPP.SHELL.PWA.MENU_RESET": "Clear",
 	"WEBAPP.SHELL.PWA.MENU_RESET_TOOLTIP": "Remove all offline data from this client",
 	"WEBAPP.SHELL.PWA.AUTOMATIC_OFFLINE_SLOW_INTERNET": "Интернет-соединение медленное. Автоматически переключено в офлайн-режим.", 
