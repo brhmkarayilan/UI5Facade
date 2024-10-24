@@ -1154,6 +1154,6 @@ JS;
      */
     public function buildJsResetter() : string
     {
-        return $this->getController()->getView()->buildJsViewGetter($this) . ".setData({});";
+        return $this->getController()->getView()->buildJsViewGetter($this) . ".getModel().setData({});";
     }
 }

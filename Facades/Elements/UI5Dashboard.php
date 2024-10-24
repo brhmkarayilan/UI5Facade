@@ -1,11 +1,16 @@
 <?php
 namespace exface\UI5FAcade\Facades\Elements;
 
+use exface\Core\CommonLogic\UxonObject;
+use exface\Core\DataTypes\WidgetVisibilityDataType;
+use exface\Core\Interfaces\Widgets\iShowData;
+use exface\Core\Interfaces\Widgets\iUseData;
 use exface\Core\Widgets\Dashboard;
 use exface\Core\Interfaces\WidgetInterface;
 use exface\Core\Factories\WidgetFactory;
 use exface\Core\Widgets\Card;
 use exface\Core\Widgets\Tile;
+use exface\UI5Facade\Facades\Elements\UI5DynamicPage;
 
 /**
  * A `Dashboard` is a Widget to display multiple Widgets in an grid-like layout, to let the user have an
@@ -34,6 +39,12 @@ class UI5Dashboard extends UI5Container
      * @var WidgetInterface[][]
      */
     private $widgetsAssignedToContainers = [];
+
+    protected function init()
+    {
+        parent::init();
+        $this->getWidget()->registerFilterLinks();
+    }
     
     /**
      * 
@@ -42,7 +53,86 @@ class UI5Dashboard extends UI5Container
      */
     public function buildJsConstructor($oControllerJs = 'oController') : string
     {   
-        return $this->buildJsLayoutConstructor($this->buildJsLayoutGridContainers($oControllerJs));
+        $widget = $this->getWidget();
+
+        if ($widget->getLayoutType() === Dashboard::LAYOUT_SPLIT) {
+            $splitWidget = $widget->getWidgetFirst();
+            $splitWidget->setHideCaption(true);
+            // The sap.f.DynamicPage will be added automatically in buildJsPageWrapper()
+            $layoutJs = parent::buildJsConstructor($oControllerJs);
+        } else {
+            $layoutJs = $this->buildJsLayoutConstructor($this->buildJsLayoutGridContainers($oControllerJs));
+        }
+        return $layoutJs;
+    }
+
+    /**
+     * 
+     * @return bool
+     */
+    protected function isWrappedInDynamicPage() : bool
+    {
+        return $this->getWidget()->hasFilters();
+    }
+
+    /**
+     * 
+     * @return string
+     */
+    protected function buildJsHeaderButtons() : string
+    {
+        if (! $this->isWrappedInDynamicPage()) {
+            return '';
+        }
+
+        $searchJs = '';
+        foreach ($this->getDataElements() as $el) {
+            $searchJs .= PHP_EOL . $el->buildJsRefresh();
+        }
+
+        $translator = $this->getWorkbench()->getCoreApp()->getTranslator();
+        $buttons = [];
+        $btn = WidgetFactory::createFromUxonInParent($this->getWidget()->getConfiguratorWidget()->getFilterTab(), new UxonObject([
+            'widget_type' => 'Button',
+            'action' => [
+                'alias' => 'exface.Core.CustomFacadeScript',
+                'script' => ''
+            ],
+            'show_icon' => false,
+            'hint' => $translator->translate('ACTION.RESETWIDGET.NAME'),
+            'caption' => $translator->translate('ACTION.RESETWIDGET.NAME'),
+            'visibility' => WidgetVisibilityDataType::PROMOTED
+        ]));
+        $buttons[] = $btn;
+        $this->getFacade()->getElement($btn)->setUI5ButtonType('Transparent');
+        $btn = WidgetFactory::createFromUxonInParent($this->getWidget()->getConfiguratorWidget()->getFilterTab(), new UxonObject([
+            'widget_type' => 'Button',
+            'action' => [
+                'alias' => 'exface.Core.CustomFacadeScript',
+                'script' => $searchJs
+            ],
+            'show_icon' => false,
+            'hint' => $translator->translate('ACTION.READDATA.NAME'),
+            'caption' => $translator->translate('ACTION.READDATA.NAME'),
+            'visibility' => WidgetVisibilityDataType::PROMOTED
+        ]));
+        $buttons[] = $btn;
+        $buttonsJs = '';
+        foreach ($buttons as $btn) {
+            $buttonsJs .= $this->getFacade()->getElement($btn)->buildJsConstructor() . ',';
+        }
+        return $buttonsJs;
+    }
+
+    protected function getDataElements() : array
+    {
+        $els = [];
+        foreach ($this->getWidget()->getWidgetsRecursive() as $child) {
+            if ($child instanceof iShowData || $child instanceof iUseData) {
+                $els[] = $this->getFacade()->getElement($child);
+            }
+        }
+        return $els;
     }
     
     /**
@@ -359,6 +449,25 @@ JS;
             return '';
         } else {
             return (100-$widthSum) . '%';
+        }
+    }
+
+    public function hasPageWrapper() : bool
+    {
+        return $this->isWrappedInDynamicPage() || parent::hasPageWrapper();
+    }
+
+    protected function buildJsPageWrapper(string $contentJs, string $footerConstructor = '', string $headerContentJs = '') : string
+    {
+        if ($this->isWrappedInDynamicPage()) {
+            $dynamicPage = new UI5DynamicPage($this->getWidget(), $this->getFacade());
+            $dynamicPage->setController($this->getController());
+            $dynamicPage->setContentJs($contentJs);
+            $dynamicPage->setHeaderToolbarJs($this->buildJsHeaderButtons());
+            $dynamicPage->setId($this->getId() . '_page');
+            return $dynamicPage->buildJsConstructor();
+        } else {
+            return parent::buildJsPageWrapper($contentJs, $footerConstructor, $headerContentJs);
         }
     }
 }

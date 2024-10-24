@@ -648,6 +648,9 @@ JS;
 
         return <<<JS
 (function(bVisible, oCtrl){
+    if (oCtrl === undefined) {
+        return;
+    }
     if (oCtrl.getParent().getMetadata().getName() == 'sap.ui.layout.form.FormElement') {
         if (bVisible === oCtrl.getParent().getVisible()) {
             return;
