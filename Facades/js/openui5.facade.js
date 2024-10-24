@@ -1817,7 +1817,8 @@ const exfLauncher = {};
 			columns: [
 				new sap.m.Column({
 					header: new sap.m.Label({ text: "Timestamp" }),
-					width: "200px"
+					width: "200px", 
+                	hAlign: "Begin"
 				}),
 				new sap.m.Column({
 					header: new sap.m.Label({ text: "Message" })
@@ -1841,7 +1842,15 @@ const exfLauncher = {};
 				path: "/errors",
 				template: new sap.m.ColumnListItem({
 					cells: [
-						new sap.m.Text({ text: "{timestamp}" }),
+						new sap.m.Text({ 
+							text: {
+								path: "timestamp",
+								type: new sap.ui.model.type.DateTime({
+									pattern: "yyyy-MM-dd HH:mm:ss",
+									UTC: true
+								})
+							}
+						}),
 						new sap.m.VBox({
 							items: [
 								new sap.m.Text({
@@ -1956,7 +1965,7 @@ const exfLauncher = {};
 			return exfPWA.getLatestConnectionStatus()
 				.then(function (connectionStatus) {
 					return {
-						timestamp: error.timestamp,
+						timestamp: new Date(error.timestamp),
 						message: error.message,
 						url: error.url,
 						stack: error.stack,
